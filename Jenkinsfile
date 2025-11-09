@@ -1,8 +1,7 @@
 pipeline {
   agent any
-  tools {
-    jdk 'jdk-17'           // Use the JDK you just configured
-  }
+  options { skipDefaultCheckout(true) }     // we'll do an explicit git checkout
+  tools { jdk 'jdk-17' }                    // Manage Jenkins → Tools → JDK installations → jdk-17
 
   stages {
     stage('Checkout') {
@@ -11,12 +10,18 @@ pipeline {
       }
     }
 
-    stage('Build') {
+    stage('Build & Package') {
       steps {
         sh 'echo "JAVA_HOME=$JAVA_HOME"'
-        sh 'java -version'
-        sh 'chmod +x mvnw || true'
-        sh './mvnw -V -B clean package'
+        sh 'which java && java -version'
+        sh 'which mvn || true'
+        // Use mvnw if present; otherwise fall back to system Maven
+        sh 'if [ -x ./mvnw ]; then chmod +x mvnw && ./mvnw -V -B clean package; else mvn -V -B clean package; fi'
+      }
+      post {
+        always {
+          junit 'target/surefire-reports/*.xml'
+        }
       }
     }
 
@@ -27,6 +32,7 @@ pipeline {
     }
 
     stage('Deploy') {
+      when { branch 'main' }                // only deploy from main
       steps {
         sh 'docker version'
         sh 'docker build -f Dockerfile -t myapp .'
@@ -36,6 +42,8 @@ pipeline {
     }
   }
 }
+
+
 
 
 
